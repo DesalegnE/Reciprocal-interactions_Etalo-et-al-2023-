@@ -1,6 +1,6 @@
 ## Created by D.W.Etalo to analyze 16S rRNA amplicon sequence for manuscript: Reciprocal interactions between the sorghum root microbiome and the parasitic weed Striga hermonthica 
 ### Desalegn W. Etalo, Dominika Rybka, Lorenzo Lombard, Marcio F.A. Leite, Adam Ossowicki, Francisco Dini-Andreote1, Luisa Arias-Giraldo1, Eiko E. Kuramae, Pedro W. Crous, Taye Tessema and Jos M. Raaijmakers
-### Raw sequences are available form Genbank bioproject: PRJNA982817 (At publication time)
+### Raw sequences are available from Genbank bioproject: PRJNA982817 (At publication time)
 ### Analyses were executed on Mac M1. It requires QIIME2, R, and libraries indicated below.
 
 #The rhizosphere bacteriome of sorghum grown in two different soil samples that are either gamma-irradiated or natural was analyzed in the presence and absence of striga. 
@@ -56,7 +56,7 @@ qiime metadata tabulate \
   --m-input-file denoising-stats.qza \
   --o-visualization denoising-stats.qzv
 
-#Generate and examine the DADA2 stats. You should be retaining most (>50%) of your sequences. If you are losing a large number of sequences at a certain DADA2 step, you will need to troubleshoot and adjust your DADA2 parameters accordingly.
+#Generate and examine the DADA2 stats. You should be retaining most (>50%) of your sequences. If you are losing a significant portion of sequences at a certain DADA2 step, you will need to troubleshoot and adjust your DADA2 parameters accordingly.
 qiime feature-table summarize \
   --i-table table.qza \
   --o-visualization table.qzv \
