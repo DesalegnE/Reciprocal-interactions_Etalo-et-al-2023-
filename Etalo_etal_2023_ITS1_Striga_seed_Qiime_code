@@ -101,7 +101,7 @@ qiime taxa barplot \
   --m-metadata-file metadata.tsv \
   --o-visualization taxa-barplot.qzv
 
-# combining the taxonomy table with the ASV count table 
+# combining the taxonomy table with the OTU count table 
 
 qiime feature-table transpose \
   --i-table table-dn-97.qza \
