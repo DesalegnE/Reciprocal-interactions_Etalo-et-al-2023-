@@ -1,0 +1,416 @@
+#Install the following packages and load the liberaries 
+library(tidyverse)
+library(readxl)
+library(tidyr)
+library(dplyr)
+library(magrittr)
+library(gjam)
+#Load the Fungal and bacterial data and the metadata containg measurements related to Striga infection and sorghum performace
+Metadata <- read.csv("Metadata.csv")
+pdata <- read.csv("Bacteria_OTU.csv")
+fdata <- read.csv("Fungi_OTU.csv")
+
+#preparing data table
+#Microbiome Data
+colnames(pdata)[2:40] <- substr(colnames(pdata)[2:40],1,2)
+colnames(pdata)
+colnames(fdata)
+dim(pdata)#check the dimention of the bacterial data 
+dim(fdata)#check the dimention of the fungal data 
+
+#Summarized Bacterial Taxonomic Data.
+yP <- pdata[,-1] %>% 
+  separate(Taxon, c("Kingdom","Phylum", "Class", "Order", "Family", "Genus", "Species"), sep = ";") %>%
+  filter(Kingdom %in% c("k__Bacteria")) %>% 
+  group_by(Kingdom, Phylum,  Class,   Order,   Family,  Genus,   Species) %>% 
+  summarise_all(sum) %>% 
+  ungroup
+dim(yP)
+#Summarized Fungal Taxonomic Data.
+yF <- fdata[,-1] %>% 
+  separate(Taxon, c("Kingdom","Phylum", "Class", "Order", "Family", "Genus", "Species"), sep = ";") %>% 
+  filter(Kingdom == "k__Fungi") %>% 
+  filter(Phylum %in% c("p__Ascomycota","p__Basidiomycota","p__Chytridiomycota","p__Glomeromycota",    
+                       "p__Mortierellomycota","p__Mucoromycota","p__Olpidiomycota","p__Rozellomycota")) %>% 
+  group_by(Kingdom, Phylum,  Class,   Order,   Family,  Genus,   Species) %>% 
+  summarise_all(sum) %>% 
+  ungroup
+dim(yF)
+
+apply(yP[,1:7],2,unique)
+apply(yF[,1:7],2,unique)
+View(yP)
+yP
+
+# Create a new data frame called TaxInfoP/F based on yP/F
+#bacteria 
+TaxInfoP <- yP %>% 
+  # Select specific columns for annotation
+  select(Kingdom, Phylum, Class, Order, Family, Genus, Species) %>% 
+  # Create a new column called TaxAbbr by concatenating abbreviated Phylum and Genus
+  mutate(TaxAbbr = paste(abbreviate(Phylum, 6), abbreviate(Genus, 6))) %>% 
+  # Check for duplicated values in TaxAbbr and replace them with a combination of Phylum, Family, Genus, and Species
+  mutate(TaxAbbr = ifelse(TaxAbbr %in% TaxAbbr[duplicated(TaxAbbr)], 
+                          paste(abbreviate(Phylum, 6), abbreviate(Family, 4), abbreviate(Genus, 6), abbreviate(Species, 6)),
+                          TaxAbbr)) %>% 
+  # Check for remaining duplicated values in TaxAbbr and replace them with a combination of Phylum, Order, Family, and Genus
+  mutate(TaxAbbr = ifelse(TaxAbbr %in% TaxAbbr[duplicated(TaxAbbr)], 
+                          paste(abbreviate(Phylum, 6), abbreviate(Order, 4), abbreviate(Family, 4), abbreviate(Genus, 6)),
+                          TaxAbbr)) %>% 
+  # Check for any remaining duplicated values in TaxAbbr and replace them with a combination of Phylum, Class, Order, Family, and Genus
+  mutate(TaxAbbr = ifelse(TaxAbbr %in% TaxAbbr[duplicated(TaxAbbr)], 
+                          paste(abbreviate(Phylum, 6), abbreviate(Class, 4), abbreviate(Order, 4), abbreviate(Family, 4), abbreviate(Genus, 6)),
+                          TaxAbbr))
+
+# View the resulting TaxInfoP data frame
+View(TaxInfoP)
+
+# Extract the duplicated values in the TaxAbbr column
+TaxInfoP$TaxAbbr[duplicated(TaxInfoP$TaxAbbr)]
+
+# Summary statistics of the TaxInfoP data frame
+summary(TaxInfoP)
+
+# Write the TaxInfoF data frame to a tab-separated file
+write.table(TaxInfoP, "TaxInfoP.tsv", sep = "\t", quote=F, col.names=NA)
+
+#fungi 
+
+# Create a new data frame called TaxInfoF based on yF
+TaxInfoF <- yF %>% 
+  # Select specific columns for annotation
+  select(Kingdom, Phylum, Class, Order, Family, Genus, Species) %>% 
+  # Create a new column called TaxAbbr by concatenating abbreviated Phylum and Species
+  mutate(TaxAbbr = paste(abbreviate(Phylum, 6), abbreviate(Species, 6))) %>%  
+  # Check for duplicated values in TaxAbbr and replace them with a combination of Phylum, Genus, and Species
+  mutate(TaxAbbr = ifelse(TaxAbbr %in% TaxAbbr[duplicated(TaxAbbr)], 
+                          paste(abbreviate(Phylum, 6), abbreviate(Genus, 6), abbreviate(Species, 6)),
+                          TaxAbbr)) %>% 
+  # Check for remaining duplicated values in TaxAbbr and replace them with a combination of Phylum, Order, Family, and Genus
+  mutate(TaxAbbr = ifelse(TaxAbbr %in% TaxAbbr[duplicated(TaxAbbr)], 
+                          paste(abbreviate(Phylum, 6), abbreviate(Order, 4), abbreviate(Family, 4), abbreviate(Genus, 6)),
+                          TaxAbbr)) %>% 
+  # Check for any remaining duplicated values in TaxAbbr and replace them with a combination of Phylum, Class, Order, Family, and Genus
+  mutate(TaxAbbr = ifelse(TaxAbbr %in% TaxAbbr[duplicated(TaxAbbr)], 
+                          paste(abbreviate(Phylum, 6), abbreviate(Class, 4), abbreviate(Order, 4), abbreviate(Family, 4), abbreviate(Genus, 6)),
+                          TaxAbbr))
+
+# View the resulting TaxInfoF data frame
+View(TaxInfoF)
+
+# Extract the duplicated values in the TaxAbbr column
+TaxInfoF$TaxAbbr[duplicated(TaxInfoF$TaxAbbr)]
+
+# Summary statistics of the TaxInfoF data frame
+summary(TaxInfoF)
+
+# Write the TaxInfoF data frame to a tab-separated file
+write.table(TaxInfoF, "TaxInfoF.tsv", sep = "\t", quote = FALSE, col.names = NA)
+
+
+# Create a subset of yP data frame by selecting columns 8 to 46
+ydataP <- yP %>% 
+  select(8:46)
+
+library(dplyr)
+
+# Convert ydataP to a data frame
+ydataP <- as.data.frame(ydataP)
+
+# Add a new column to ydataP using the TaxAbbr column from TaxInfoP
+ydataP$TaxAbbr <- TaxInfoP$TaxAbbr
+
+# Set the row names using the TaxAbbr column
+row.names(ydataP) <- ydataP$TaxAbbr
+
+# Remove the TaxAbbr column if not needed
+ydataP <- ydataP %>%
+  select(-TaxAbbr)
+
+# Set row names of ydataP using the TaxAbbr column from TaxInfoP data frame
+rownames(ydataP) <- TaxInfoP$TaxAbbr
+
+# Transpose ydataP to convert columns to rows
+ydataP <- t(ydataP)
+
+# View the resulting ydataP data frame
+View(ydataP)
+
+# Create a subset of yF data frame by selecting columns 8 to 46
+ydataF <- yF %>% 
+  select(8:46)
+
+library(dplyr)
+
+# Convert ydataF to a data frame
+ydataF <- as.data.frame(ydataF)
+
+# Add a new column to ydataF using the TaxAbbr column from TaxInfoF
+ydataF$TaxAbbr <- TaxInfoF$TaxAbbr
+
+# Set the row names using the TaxAbbr column
+rownames(ydataF) <- ydataF$TaxAbbr
+
+# Remove the TaxAbbr column if not needed
+ydataF <- ydataF %>%
+  select(-TaxAbbr)
+
+# Set row names of ydataF using the TaxAbbr column from TaxInfoF data frame
+rownames(ydataF) <- TaxInfoF$TaxAbbr
+
+# Transpose ydataF to convert columns to rows
+ydataF <- t(ydataF)
+
+# View the resulting ydataF data frame
+View(ydataF)
+
+#Covariates Data
+# Retrieve column names of the Metadata data frame
+colnames(Metadata)
+
+# Create a new data frame called cov.DT based on selected columns from Metadata
+cov.DT <- Metadata %>%
+  # Select specific columns for cov.DT
+  select(`Plate_location`, `Sample_description`, `SAPP`, `PLDSW`, `DSW`, `DRW`) %>% 
+  # Separate the Sample_description column into three separate columns: SoilType, Sterilization, and Striga
+  separate(`Sample_description`, into = c("SoilType", "Sterilization", "Striga"), sep = "_") %>% 
+  # Convert the resulting tibble to a data frame
+  data.frame()
+
+# Set row names of cov.DT using the Plate_location column
+rownames(cov.DT) <- cov.DT$Plate_location
+
+# View the resulting cov.DT data frame
+View(cov.DT)
+
+#GJAM
+
+# Create a new data frame called xdata based on cov.DT
+xdata <- cov.DT %>% 
+  # Convert the SoilType, Sterilization, and Striga columns to factors
+  mutate(SoilType = factor(SoilType),
+         Sterilization = factor(Sterilization),
+         Striga = factor(Striga))
+
+# Generate a summary of xdata, displaying summary statistics for each column
+summary(xdata)
+
+# Plot the variables in xdata, excluding the first column
+plot(xdata[,-1])
+
+# Set row names of xdata using the row names of cov.DT
+rownames(xdata) <- rownames(cov.DT)
+
+#Visualize the rare taxa in the OTU table 
+otu    <- ydataP[rownames(cov.DT),]
+dim(otu)
+
+# Set the plotting parameters
+par(mfrow = c(1, 3),     # Arrange the plots in a 1x3 grid
+    bty = 'n',          # Remove box around the plot
+    mar = c(1, 1, 1, 1), # Set the margins of the plot area
+    oma = c(0, 0, 0, 0), # Set the outer margins of the plot
+    mar = c(3, 2, 2, 1), # Set the margins of the plot area
+    tcl = -0.5,         # Set the length of tick marks on the axis
+    mgp = c(3, 1, 0),   # Set the distance of axis labels from the axis
+    family = '')        # Set the font family for text labels
+
+# Plot a histogram of the 'otu' variable with 100 bins
+hist(otu, nclass = 100, ylab = 'Reads', main = 'each observation')
+
+# Use gjamTrimY function to calculate the number of observations per 'otu' with a minimum of 15 observations, excluding 'OTHER'
+nobs <- gjamTrimY(otu, minObs = 15, OTHER = FALSE)$nobs
+dim(nobs)
+# Plot a histogram of 'nobs' variable with 100 bins
+hist(nobs, nclass = 100, ylab = 'Total reads per OTU', main = 'Full sample')
+
+# Turn off the current device (close the graphics device)
+dev.off()
+
+
+# all the data
+# Create a new vector called rowInfo containing the row names of xdata
+rowInfo <- rownames(xdata)
+
+# Use gjamTrimY function to trim ydataP based on rowInfo, keeping only OTUs with a minimum of 4 observations
+#Bacteria
+
+tmpP <- gjamTrimY(ydataP[rowInfo,], minObs = 12)$y %>% 
+  data.frame() %>% 
+  rename(otherP = other)
+  dim(ydataP)# Get the dimensions (number of rows and columns) of ydataP
+  dim(tmpP)# Get the dimensions (number of rows and columns) of tmpP (trimmed data)
+  tail(colnames(tmpP))# Get the last few column names of tmpP (trimmed data), which includes the 'other' class added
+  colSums(tmpP)# Calculate the column sums of tmpP (trimmed data)
+  View(tmpP)# View the resulting tmpP data frame
+  rownames(tmpP)# Get the row names of tmpP data frame
+#Fungi 
+tmpF <- gjamTrimY(ydataF[rowInfo,], minObs = 12)$y %>% 
+  data.frame() %>% 
+  rename(otherF = other)
+dim(ydataF)              
+dim(tmpF)                   
+tail(colnames(tmpF))           
+colSums(tmpF)
+View(tmpF)
+rownames(tmpF)
+rownames(tmpF)# Get the row names of tmpF data frame
+
+# Create a subset of xdata data frame, selecting rows based on rowInfo
+TreatVars <- xdata[rowInfo,]
+
+# merging fungi and bacteria 
+# Combine tmpP and tmpF data frames using cbind, selecting rows based on rownames of xdata
+ydata <- cbind(tmpP[rownames(xdata),], tmpF[rownames(xdata),])
+
+# Combine tmpP and tmpF data frames using cbind, selecting rows based on rownames of TreatVars
+ydata <- cbind(tmpP[rownames(TreatVars),], tmpF[rownames(TreatVars),])
+
+# Display the resulting ydata data frame
+ydata
+
+# Get the dimensions (number of rows and columns) of ydata
+dim(ydata)
+
+# Get the row names of ydata
+rownames(ydata)
+
+# Create a subset of ydata data frame, selecting rows based on rowInfo
+Vars <- ydata[rowInfo,]
+
+# Remove columns from Vars that have column sums greater than 0
+Vars <- Vars[, colSums(Vars) > 0]
+
+# Add the 'SAPP' column from TreatVars to ydata as 'StrigaAtt'
+ydata$StrigaAtt <- TreatVars$SAPP
+
+# Add the 'PLDSW' column from TreatVars to ydata as 'ShootW_loss'
+ydata$ShootW_loss <- TreatVars$PLDSW
+
+# Add the 'DSW' column from cov.DT (using rownames from TreatVars) to ydata as 'ShootW'
+ydata$ShootW <- cov.DT[rownames(TreatVars), ]$DSW
+
+# Add the 'DRW' column from cov.DT (using rownames from TreatVars) to ydata as 'RootW'
+ydata$RootW <- cov.DT[rownames(TreatVars), ]$DRW
+
+
+#start the gjam parameters
+# Get the number of columns in ydata
+S <- ncol(ydata)
+
+# Get the column names of ydata
+colnames(ydata)
+
+# Create a vector called typeNames, specifying the type of data for each column in ydata
+typeNames <- c(rep('CC', S-4), "DA", "DA", "CON", "CON")
+
+# Display the typeNames vector
+typeNames
+
+# View the ydata data frame in a separate viewer window
+View(ydata)
+
+# View the xdata data frame in a separate viewer window
+View(xdata)
+
+# Output
+# Create a list called rl with elements 'r' and 'N'
+rl <- list(r = 10, N = 30)
+
+# Create a list called ml with elements 'ng', 'burnin', 'typeNames', and 'reductList'
+ml <- list(ng = 10000, burnin = 3000, typeNames = typeNames, reductList = rl)
+
+# Run the gjam model with the specified formula and data, using the modelList
+output <- gjam(~ SoilType * Sterilization * Striga, xdata = xdata, ydata = ydata, modelList = ml)
+
+
+# Summarize the output1 object
+summary(output)
+
+# Get the Deviance Information Criterion (DIC) value from the 'fit' object in output1
+output$fit$DIC
+
+
+# Assign the output object to selected.model
+selected.model <- output
+
+# Create a vector called specColor specifying the colors for different variables in the plot
+specColor <- c(rep("#8B1E1A", ncol(tmpP)), rep("#7570b3", ncol(tmpF)), rep("black", 3))
+
+# Create a list called pl with various plot parameters
+pl <- list(GRIDPLOTS = TRUE, PLOTALLY = FALSE, BETAGRID = TRUE, SAVEPLOTS = TRUE, cex = 0.8, specColor = specColor)
+
+# Generate plots based on the selected model and plot parameters
+plot.output <- gjamPlot(output = selected.model, plotPars = pl)
+
+# Get the coefficients of the selected model
+coef(selected.model)
+
+# Access the predictions of presence from the selected model
+selected.model$prediction$presence
+
+#Sensitivity Analysis helps to understand which treatment resulted in the strongest impact in a user-defined set of variables
+
+# Get the ydata used in the selected model
+selected.model$inputs$y
+
+# Get the column names of the ydata used in the selected model
+ynames <- colnames(selected.model$inputs$y)
+
+# Create a group vector by selecting the column names where the corresponding typeNames is 'CC'
+group <- ynames[typeNames == 'CC']
+
+# View the ydata data frame
+View(ydata)
+
+# Select the variables for the Bacteriome based on their column indices
+Bacteriome <- ynames [1:76]    
+
+# Select the variables for the Mycobiome based on their column indices
+Mycobiome <- ynames[77:96]  
+
+# Select the variables for the Host_parasite based on their column indices
+Host_parasite <- ynames[97:100] 
+
+# Perform sensitivity analysis on the full model
+full <- gjamSensitivity(selected.model)
+# Get the number of columns (variables) in the full sensitivity analysis
+nt <- ncol(full)
+# Perform sensitivity analysis on the microbiome variables without distinguishing between taxa
+cc <- gjamSensitivity(selected.model, group)
+
+#At that part you can perform the sensitivity analysis for the different groups of variables
+
+# Perform sensitivity analysis on the Bacteriome variables
+bc <- gjamSensitivity(selected.model, Bacteriome) 
+
+# Perform sensitivity analysis on the Mycobiome variables
+mc <- gjamSensitivity(selected.model, Mycobiome) 
+
+# Perform sensitivity analysis on the Host_parasite variables
+hpc <- gjamSensitivity(selected.model, Host_parasite) 
+
+
+# Set the y-axis limits based on the range of the sensitivity analysis results for all groups
+ylim <- range(rbind(bc, mc, hpc))
+
+# Define the order in which the treatments should be displayed in the boxplot
+VarOrder <- c(4, 3, 2, 1, 10, 9, 8, 7, 6, 5)
+
+# Boxplot for the Mycobiome variables
+boxplot(bc[, VarOrder], boxwex = 0.15, at = 1:nt - 0.3, col = '#7570b3', log = 'y', ylim = ylim,
+        xaxt = 'n', xlab = 'Predictors', ylab = 'Sensitivity')
+
+# Add boxplot for the Bacteriome variables to the existing plot
+boxplot(mc[, VarOrder], boxwex = 0.15, at = 1:nt, col = '#8B1E1A', add = TRUE, xaxt = 'n')
+
+# Add boxplot for the Host_parasite variables to the existing plot
+boxplot(hpc[, VarOrder], boxwex = 0.15, at = 1:nt + 0.3, col = '#1b9e77', add = TRUE, xaxt = 'n')
+
+# Add x-axis labels to the plot
+axis(1, at = 1:nt, labels = colnames(full)[VarOrder], las = 2)
+
+# Add a legend to the plot
+legend('bottomleft', c('Mycobiome', 'Bacteriome', 'Host_parasite'),
+       text.col = c('#7570b3', '#8B1E1A', '#1b9e77'))
+

@@ -1,0 +1,238 @@
+## Created by D.W.Etalo to analyse 16S rRNA amplicon sequence for manuscript: Reciprocal interactions between the sorghum root microbiome and the parasitic weed Striga hermonthica 
+### Desalegn W. Etalo, Dominika Rybka, Lorenzo Lombard, Marcio F.A. Leite, Adam Ossowicki, Francisco Dini-Andreote1, Luisa Arias-Giraldo1, Eiko E. Kuramae, Pedro W. Crous, Taye Tessema and Jos M. Raaijmakers
+### Raw sequences are available form Genbank bioproject: PRJNA982817 (At publication time)
+### Analyses were executed on Mac M1. It requires QIIME2, R and libraries indicated bellow.
+
+#The rhizosphere bacteriome of sorghum grown in two different soil samples that are either gammairradiated or natural was analysed in the presece and absence of striga 
+
+# activate qiime2
+conda activate qiime2-2022.11
+
+#Create the manifest file to import the fastq files in qiime2
+
+echo "sample-id,absolute-filepath,direction" > manifest.csv 
+for i in *R1* ; do echo "${i/_R1.fastq.gz},$PWD/$i,forward"; done >> manifest.csv 
+for i in *R2* ; do echo "${i/_R2.fastq.gz},$PWD/$i,reverse"; done >> manifest.csv
+
+
+qiime tools import \
+  --type 'SampleData[PairedEndSequencesWithQuality]' \
+  --input-path manifest.csv \
+  --output-path paired-end-demux.qza \
+  --input-format PairedEndFastqManifestPhred33
+#A visualization of the imported sequences is often helpful.
+qiime demux summarize \
+  --i-data paired-end-demux.qza \
+  --o-visualization paired-end-demux.qzv
+# trim primers (341F and 805R (V3-V4))
+qiime cutadapt trim-paired \
+--i-demultiplexed-sequences paired-end-demux.qza \
+--p-front-f CCTACGGGNGGCWGCAG \
+--p-front-r GACTACHVGGGTATCTAATCC \
+--p-cores 10 \
+--p-discard-untrimmed \
+--o-trimmed-sequences trimmed-seqs.qza \
+--verbose
+
+qiime demux summarize \
+  --i-data trimmed-seqs.qza \
+  --o-visualization trimmed-seqs.qzv
+
+#Denoising with DADA2
+qiime dada2 denoise-paired \
+--i-demultiplexed-seqs trimmed-seqs.qza \
+--p-trunc-len-f 276  \
+--p-trunc-len-r 224 \
+--p-chimera-method 'consensus' \
+--p-pooling-method 'independent' \
+--p-n-threads 10 \
+--o-table table.qza \
+--o-representative-sequences rep-seqs.qza \
+--o-denoising-stats denoising-stats.qza \
+--verbose 
+
+# Make summary files and visualize the outputs of DADA2.
+qiime metadata tabulate \
+  --m-input-file denoising-stats.qza \
+  --o-visualization denoising-stats.qzv
+
+#Generate and examine the DADA2 stats. You should be retaining most (>50%) of your sequences. If you are losing a large number of sequences at a certain DADA2 step, you will need to troubleshoot and adjust your DADA2 parameters accordingly.
+qiime feature-table summarize \
+  --i-table table.qza \
+  --o-visualization table.qzv \
+  --m-sample-metadata-file metadata.tsv
+
+qiime feature-table tabulate-seqs \
+  --i-data rep-seqs.qza \
+  --o-visualization rep-seqs.qzv
+
+
+# Filter feature table (filter out 'rare')
+
+  qiime feature-table filter-features \
+    --i-table table.qza \
+    --p-min-frequency 10 \
+    --p-min-samples 3 \
+    --o-filtered-table rare-filtered-table.qza
+
+qiime feature-table summarize \
+  --i-table rare-filtered-table.qza \
+  --o-visualization rare-filtered-table.qzv \
+  --m-sample-metadata-file metadata.tsv
+
+qiime feature-table filter-seqs \
+  --i-data rep-seqs.qza \
+  --i-table rare-filtered-table.qza \
+  --o-filtered-data rare-filtered-repseqs.qza
+
+qiime feature-table tabulate-seqs \
+--i-data rare-filtered-repseqs.qza \
+--o-visualization rare-filtered-repseqs.qzv
+
+# OTU clustering features (sequences) de novo based on a specified percentage identity threshold using the VSEARCH algorithm.
+
+qiime vsearch cluster-features-de-novo \
+    --i-table rare-filtered-table.qza \
+    --i-sequences rare-filtered-repseqs.qza \
+    --p-perc-identity 0.97 \
+    --o-clustered-table table-dn-97.qza \
+    --o-clustered-sequences rep-seqs-dn-97.qza
+
+
+ #Taxonomic annotation
+#Getting SILVA data 
+qiime rescript get-silva-data \
+    --p-version '138' \
+    --p-target 'SSURef_NR99' \
+    --p-include-species-labels \
+    --o-silva-sequences silva-138-ssu-nr99-rna-seqs.qza \
+    --o-silva-taxonomy silva-138-ssu-nr99-tax.qza
+  
+ # Assign taxonomy to feature sequences:
+qiime feature-classifier classify-sklearn \
+  --i-classifier silva-classifier-v3v4.qza \
+  --i-reads rep-seqs-dn-97.qza \
+  --o-classification taxonomy.qza \
+  --p-n-jobs 10 
+  
+  
+#Create a taxonomic table
+qiime metadata tabulate \
+  --m-input-file taxonomy.qza \
+  --o-visualization taxonomy.qzv
+#Visualize results 
+qiime tools view taxonomy.qzv
+#Remove unwanted taxa from tables and sequences 
+#Filter from tables 
+# Remove features that contain Unassigned,mitochondria,chloroplast, Archaea and Eukaryota
+ qiime taxa filter-table \
+  --i-table table-dn-97.qza \
+  --i-taxonomy taxonomy.qza \
+  --p-exclude Unassigned,mitochondria,chloroplast,D_0__Archaea,Eukaryota \
+  --o-filtered-table filtered-feature-table.qza
+  
+  qiime feature-table summarize \
+  --i-table filtered-feature-table.qza \
+  --o-visualization filtered-feature-table.qzv \
+  --m-sample-metadata-file metadata.tsv
+
+#Filter from sequences 
+#Remove features that contain mitochondria or chloroplast,Archaea and Eukaryota  
+qiime taxa filter-seqs \
+  --i-sequences rep-seqs-dn-97.qza \
+  --i-taxonomy taxonomy.qza \
+  --p-exclude Unassigned,mitochondria,chloroplast,D_0__Archaea,Eukaryota \
+  --o-filtered-sequences filtered-feature-seqs.qza
+
+#Visualize taxonomic classifications
+qiime taxa barplot \
+  --i-table filtered-feature-table.qza \
+  --i-taxonomy taxonomy.qza \
+  --m-metadata-file metadata.tsv \
+  --o-visualization taxa-bar-plots.qzv
+
+#Summarize and export:
+
+# combining the taxonomy table with the ASV count table 
+
+qiime feature-table transpose \
+  --i-table filtered-feature-table.qza \
+  --o-transposed-feature-table transposed-filtered-feature-table.qza
+
+qiime metadata tabulate \
+  --m-input-file filtered-feature-seqs.qza \
+  --m-input-file taxonomy.qza \
+  --m-input-file transposed-filtered-feature-table.qza \
+  --o-visualization merged-data.qzv
+
+qiime tools export \
+  --input-path merged-data.qzv \
+  --output-path merged-data
+
+#Create phylogenetic tree 
+
+ qiime phylogeny align-to-tree-mafft-fasttree \
+    --i-sequences filtered-feature-seqs.qza \
+    --o-alignment aligned-rep-seqs.qza \
+    --o-masked-alignment masked-aligned-rep-seqs.qza \
+    --o-tree unrooted-tree.qza \
+    --o-rooted-tree rooted-tree.qza
+
+
+ #Alpha and beta diversity analysis
+
+#alpha rarefaction
+
+qiime diversity alpha-rarefaction \
+  --i-table filtered-feature-table.qza \
+  --i-phylogeny rooted-tree.qza \
+  --p-min-depth 4000 \
+  --p-max-depth 32000 \
+  --m-metadata-file metadata.tsv \
+  --o-visualization alpha-rarefaction.qzv
+
+
+ #Generate alpha and beta diversity metrics
+qiime diversity core-metrics-phylogenetic \
+  --i-phylogeny rooted-tree.qza \
+  --i-table filtered-feature-table.qza \
+  --p-sampling-depth 12000 \
+  --m-metadata-file metadata.tsv \
+  --output-dir diversity-metrics-results
+#Alpha diversity analysis
+qiime diversity alpha-group-significance \
+  --i-alpha-diversity diversity-metrics-results/faith_pd_vector.qza \
+  --m-metadata-file metadata.tsv \
+  --o-visualization diversity-metrics-results/faith-pd-group-significance.qzv
+qiime diversity alpha-group-significance \
+  --i-alpha-diversity diversity-metrics-results/shannon_vector.qza \
+  --m-metadata-file metadata.tsv \
+  --o-visualization diversity-metrics-results/shannon-group-significance.qzv
+
+#Striga
+qiime diversity beta-group-significance \
+  --i-distance-matrix diversity-metrics-results/weighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata.tsv \
+  --m-metadata-column Striga \
+  --o-visualization diversity-metrics-results/weighted-unifrac-Striga-significance.qzv \
+  --p-pairwise
+
+#Soiltreatment
+qiime diversity beta-group-significance \
+  --i-distance-matrix diversity-metrics-results/weighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata.tsv \
+  --m-metadata-column Soiltreatment \
+  --o-visualization diversity-metrics-results/weighted-unifrac-Soiltreatment-significance.qzv \
+  --p-pairwise
+#Soiltype
+
+qiime diversity beta-group-significance \
+  --i-distance-matrix diversity-metrics-results/weighted_unifrac_distance_matrix.qza \
+  --m-metadata-file metadata.tsv \
+  --m-metadata-column Soiltype \
+  --o-visualization diversity-metrics-results/weighted-unifrac-Soiltype-significance.qzv \
+  --p-pairwise
+qiime tools view diversity-metrics-results/weighted-unifrac-Soiltype-significance.qzv
+
+
+

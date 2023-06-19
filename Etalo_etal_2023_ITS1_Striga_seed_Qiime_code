@@ -1,0 +1,171 @@
+## Created by D.W.Etalo to analyse ITS amplicon sequence for manuscript: Reciprocal interactions between the sorghum root microbiome and the parasitic weed Striga hermonthica 
+### Desalegn W. Etalo, Dominika Rybka, Lorenzo Lombard, Marcio F.A. Leite, Adam Ossowicki, Francisco Dini-Andreote1, Luisa Arias-Giraldo1, Eiko E. Kuramae, Pedro W. Crous, Taye Tessema and Jos M. Raaijmakers
+### Raw sequences are available form Genbank bioproject: PRJNA982817 (At publication time)
+### Analyses were executed on Mac M1. It requires QIIME2, R and libraries indicated bellow.
+
+#The seed mycobiome of Striga hermonthica from the episphere and endosphere was analysed.
+
+# activate qiime2
+conda activate qiime2-2022.11
+
+#Create the manifest file to import the fastq files in qiime2
+
+echo "sample-id,absolute-filepath,direction" > manifest.tsv 
+for i in *R1* ; do echo "${i/_R1.fastq.gz},$PWD/$i,forward"; done >> manifest.tsv 
+for i in *R2* ; do echo "${i/_R2.fastq.gz},$PWD/$i,reverse"; done >> manifest.tsv
+
+#Import your demultiplexed paired-end sequence data:
+
+qiime tools import \
+  --type 'SampleData[PairedEndSequencesWithQuality]' \
+  --input-path manifest.tsv \
+  --input-format PairedEndFastqManifestPhred33 \
+  --output-path demux.qza
+#Use Cutadapt to trim primers and merge paired-end reads:
+
+#Remove primers (ITS1F and ITS2R)
+qiime cutadapt trim-paired \
+--i-demultiplexed-sequences qiime_artifact/paired-end-demux.qza \
+--p-front-f CTTGGTCATTTAGAGGAAGTAA \
+--p-front-r GCTGCGTTCTTCATCGATGC \
+--p-cores 10 \
+--p-discard-untrimmed \
+--o-trimmed-sequences trimmed.qza \
+--verbose
+
+
+#Install itsxpress
+
+conda config --add channels bioconda
+conda install itsxpress
+# extract the ITS1 region 
+qiime itsxpress trim-pair-output-unmerged \
+  --i-per-sample-sequences trimmed.qza \
+  --p-region ITS1 \
+  --p-taxa F \
+  --p-threads 10 \
+  --verbose \
+  --o-trimmed trimmed_ITS1.qza
+
+### analyze ITSxpress trimmed sequences-dada2
+
+Denoise sequences and generate feature tables and representative sequences:
+qiime dada2 denoise-paired \
+  --i-demultiplexed-seqs trimmed_ITS1.qza \
+  --p-trunc-len-f 224 \
+  --p-trunc-len-r 200\
+  --p-trim-left-f 0 \
+  --p-trim-left-r 0 \
+  --p-n-threads 10 \
+  --o-table table.qza \
+  --o-representative-sequences rep-seqs.qza \
+  --o-denoising-stats denoising-stats.qza \
+  --verbose
+# Generate visualizations
+   qiime metadata tabulate \
+  --m-input-file denoising-stats.qza \
+  --o-visualization denoising-stats.qzv
+  
+    qiime feature-table summarize \
+  --i-table table.qza \
+  --o-visualization table_summary.qzv 
+
+    qiime feature-table tabulate-seqs \
+  --i-data rep-seqs.qza \
+  --o-visualization rep_seqs_summary.qzv
+  
+# OTU clustering features (sequences) de novo based on a specified percentage identity threshold using the VSEARCH algorithm.
+
+qiime vsearch cluster-features-de-novo \
+    --i-table table.qza \
+    --i-sequences rep-seqs.qza \
+    --p-perc-identity 0.97 \
+    --o-clustered-table table-dn-97.qza \
+    --o-clustered-sequences rep-seqs-dn-97.qza
+
+# Assign taxonomy to feature sequences:
+qiime feature-classifier classify-sklearn \
+  --i-classifier unite-ver9-97-classifier-29.11.2022.qza \
+  --i-reads rep-seqs-dn-97.qza \
+  --o-classification taxonomy.qza \
+  --p-n-jobs 10
+
+qiime metadata tabulate \
+  --m-input-file taxonomy.qza \
+  --o-visualization taxonomy_summary.qzv
+
+# Generate taxonomy barplot
+qiime taxa barplot \
+  --i-table table-dn-97.qza \
+  --i-taxonomy taxonomy.qza \
+  --m-metadata-file metadata.tsv \
+  --o-visualization taxa-barplot.qzv
+
+# combining the taxonomy table with the ASV count table 
+
+qiime feature-table transpose \
+  --i-table table-dn-97.qza \
+  --o-transposed-feature-table transposed-table.qza
+
+qiime metadata tabulate \
+  --m-input-file rep-seqs-dn-97.qza\
+  --m-input-file taxonomy.qza \
+  --m-input-file transposed-table.qza \
+  --o-visualization merged-data.qzv
+
+qiime tools export \
+  --input-path merged-data.qzv \
+  --output-path merged-data
+
+
+#Create phylogenetic tree 
+
+ qiime phylogeny align-to-tree-mafft-fasttree \
+    --i-sequences rep-seqs-dn-97.qza \
+    --o-alignment aligned-rep-seqs.qza \
+    --o-masked-alignment masked-aligned-rep-seqs.qza \
+    --o-tree unrooted-tree.qza \
+    --o-rooted-tree rooted-tree.qza
+
+#alpha rarefaction
+
+qiime diversity alpha-rarefaction \
+  --i-table table-dn-97.qza \
+  --i-phylogeny rooted-tree.qza \
+  --p-min-depth 20000 \
+  --p-max-depth 47000 \
+  --m-metadata-file metadata.tsv \
+  --o-visualization alpha-rarefaction.qzv
+
+
+  qiime diversity core-metrics-phylogenetic \
+  --i-phylogeny rooted-tree.qza \
+  --i-table table-dn-97.qza \
+  --p-sampling-depth 25000 \
+  --m-metadata-file metadata.tsv \
+  --output-dir Fungi_ITSx_core-metrics-results
+
+qiime diversity alpha-rarefaction \
+  --i-table table-dn-97.qza \
+  --p-max-depth 25000 \
+  --m-metadata-file metadata.tsv \
+  --o-visualization Fungi_ITSx_core-metrics-results/alpha-rarefaction.qzv
+
+### alpha group significance
+ qiime diversity alpha-group-significance \
+  --i-alpha-diversity Fungi_ITSx_core-metrics-results/faith_pd_vector.qza \
+  --m-metadata-file metadata.tsv \
+  --o-visualization Fungi_ITSx_core-metrics-results/faith-pd-group-significance.qzv
+  
+      
+###perform bray curtis group association 
+### beta group significance Bray Curtis
+qiime diversity beta-group-significance \
+  --i-distance-matrix Fungi_ITSx_core-metrics-results/bray_curtis_distance_matrix.qza \
+  --m-metadata-file metadata.tsv \
+  --m-metadata-column Compartment \
+  --o-visualization Fungi_ITSx_core-metrics-results/bray_curtis-Compartment-group-significance.qzv \
+  --p-pairwise
+
+
+
