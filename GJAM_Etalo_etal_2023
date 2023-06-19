@@ -1,10 +1,10 @@
-## Created by D.W.Etalo and M.F.A. Leite to analyze the joint response of the host and the rhizosphere microbiome community for environmental variables for manuscript: Reciprocal interactions between the sorghum root microbiome and the parasitic weed Striga hermonthica 
+## Created by D.W.Etalo and M.F.A. Leite to analyze the joint response of the host traits and the rhizosphere microbiome community for environmental variables for manuscript: Reciprocal interactions between the sorghum root microbiome and the parasitic weed Striga hermonthica 
 ### Desalegn W. Etalo, Dominika Rybka, Lorenzo Lombard, Marcio F.A. Leite, Adam Ossowicki, Francisco Dini-Andreote1, Luisa Arias-Giraldo1, Eiko E. Kuramae, Pedro W. Crous, Taye Tessema and Jos M. Raaijmakers
 ### Raw sequences are available from Genbank bioproject: PRJNA982817 (At publication time)
-### Analyses were executed on Mac M1. It requires QIIME2, R, and libraries indicated below.
+### Analyses were executed on Mac M1. It requires R and libraries indicated below.
 
-#The rhizosphere microbiome of sorghum grown in two different soil samples that are either gamma-irradiated or natural was analyzed in the presence and absence of striga, and its relationship with plant-associated traits and environmental variables was investigated using Generalized Joint Attribute Modeling (JGAM).
-Considering that both the host traits (Striga attachment, root, and shoot biomass) and the microbiome represent one mutually dependent response to the environment (soil samples (D20 and D21), soil treatment (natural vs. gamma-irradiated) and Striga (presence/absence)), we employed a probabilistic model GJAM  that covers the joint response of the host and the rhizosphere microbiome community. 
+#The rhizosphere microbiome of sorghum grown in two different soil samples that are either gamma-irradiated or natural was analyzed in the presence and absence of Striga. The relationship of the microbiome with plant-associated traits (Striga attachment, root, and shoot biomass) and environmental variables (soil samples (D20 and D21), soil treatment (natural vs. gamma-irradiated), and Striga (presence/absence)) was investigated using Generalized Joint Attribute Modeling (JGAM).
+The GJAM analysis aimed at unraveling the joint response of the host and the rhizosphere microbiome community to environmental variables. 
 
 
 #Install the following packages and load the libraries 
