@@ -1,9 +1,9 @@
-## Created by D.W.Etalo to analyse ITS amplicon sequence for manuscript: Reciprocal interactions between the sorghum root microbiome and the parasitic weed Striga hermonthica 
+## Created by D.W.Etalo to analyze ITS amplicon sequence for manuscript: Reciprocal interactions between the sorghum root microbiome and the parasitic weed Striga hermonthica 
 ### Desalegn W. Etalo, Dominika Rybka, Lorenzo Lombard, Marcio F.A. Leite, Adam Ossowicki, Francisco Dini-Andreote1, Luisa Arias-Giraldo1, Eiko E. Kuramae, Pedro W. Crous, Taye Tessema and Jos M. Raaijmakers
-### Raw sequences are available form Genbank bioproject: PRJNA982817 (At publication time)
-### Analyses were executed on Mac M1. It requires QIIME2, R and libraries indicated bellow.
+### Raw sequences are available from Genbank bioproject: PRJNA982817 (At publication time)
+### Analyses were executed on Mac M1. It requires QIIME2, R, and libraries indicated below.
 
-#The rhizosphere mycobiome of sorghum grown in two different soil samples that are either gammairradiated or natural was analysed in the presece and absence of striga 
+#The rhizosphere mycobiome of sorghum grown in two different soil samples that are either gamma-irradiated or natural was analyzed in the presence and absence of striga. 
 
 # activate qiime2
 conda activate qiime2-2022.11
@@ -112,7 +112,7 @@ qiime taxa barplot \
   --m-metadata-file metadata.tsv \
   --o-visualization taxa-barplot.qzv
 
-# combining the taxonomy table with the ASV count table 
+# combining the taxonomy table with the OTU count table 
 
 qiime feature-table transpose \
   --i-table table-dn-97.qza \
